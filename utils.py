@@ -3,6 +3,7 @@ from random import uniform as randfloat
 import gym
 from ray.rllib import MultiAgentEnv
 import soccer_twos
+import numpy as np
 
 
 class RLLibWrapper(gym.core.Wrapper, MultiAgentEnv):
@@ -11,6 +12,59 @@ class RLLibWrapper(gym.core.Wrapper, MultiAgentEnv):
     """
 
     pass
+
+
+class ShapingWrapper(gym.core.Wrapper, MultiAgentEnv):
+    "An RLLib wrapper which shapes rewards"
+    def __init__(self, env):
+        super().__init__(env)
+
+        # measured field geometry from Pitch.fbx mesh
+        self.field_geometry = {
+            "length": 30.0,
+            "width": 0.0,
+            "goal_a_x": -15.0,
+            "goal_b_x": 15.0,
+            "goal_y": 0.0,
+            "goal_width": 8.0,
+            "corner_radius": 3.5
+        }
+        self.objective_weights = {
+            "offensive": 0.00001,
+            "defensive": 0.00001,
+            "possession": 0.00001,
+        }
+
+        self.my_team = None
+    
+    def step(self, action):
+        obs, rewards, terminateds, infos = self.env.step(action)
+        for id in obs:
+            if self.my_team is None:
+                if id < 2:
+                    self.my_team = "a"
+                    self.field_geometry["opp_goal_pos"] = np.array([self.field_geometry["goal_b_x"],self.field_geometry["goal_y"]])
+                    self.field_geometry["own_goal_pos"] = np.array([self.field_geometry["goal_a_x"],self.field_geometry["goal_y"]])
+                else:
+                    self.my_team = "b"
+                    self.field_geometry["opp_goal_pos"] = np.array([self.field_geometry["goal_a_x"],self.field_geometry["goal_y"]])
+                    self.field_geometry["own_goal_pos"] = np.array([self.field_geometry["goal_b_x"],self.field_geometry["goal_y"]])
+
+            # see soccer_twos env wrappers.py line 291-307
+            agent_pos = np.array(infos[id]["player_info"]["position"])
+            ball_pos = np.array(infos[id]["ball_info"]["position"])
+
+            ball_dist_to_opp_goal = np.linalg.norm(agent_pos-self.field_geometry["opp_goal_pos"])
+            ball_dist_to_own_goal = np.linalg.norm(agent_pos-self.field_geometry["own_goal_pos"])
+            agent_dist_to_ball = np.linalg.norm(agent_pos-ball_pos)
+
+            rewards[id] = (rewards[id] 
+                + self.objective_weights["offensive"] * ball_dist_to_opp_goal 
+                - self.objective_weights["defensive"] * ball_dist_to_own_goal 
+                + self.objective_weights["possession"] * agent_dist_to_ball
+            )
+
+        return obs, rewards, terminateds, infos
 
 
 def create_rllib_env(env_config: dict = {}):
@@ -32,7 +86,8 @@ def create_rllib_env(env_config: dict = {}):
     if "multiagent" in env_config and not env_config["multiagent"]:
         # is multiagent by default, is only disabled if explicitly set to False
         return env
-    return RLLibWrapper(env)
+    # return RLLibWrapper(env)
+    return ShapingWrapper(env)
 
 
 def sample_vec(range_dict):
