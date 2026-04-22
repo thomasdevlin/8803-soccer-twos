@@ -56,6 +56,7 @@ class ShapingWrapper(gym.core.Wrapper, MultiAgentEnv):
 
             ball_dist_to_opp_goal = np.linalg.norm(agent_pos-self.field_geometry["opp_goal_pos"])
             ball_dist_to_own_goal = np.linalg.norm(agent_pos-self.field_geometry["own_goal_pos"])
+            ball_dist_to_own_goal = np.pow(ball_dist_to_own_goal, 2) # encourage stronger defense when closer to own goal
             agent_dist_to_ball = np.linalg.norm(agent_pos-ball_pos)
 
             rewards[id] = (rewards[id] 
