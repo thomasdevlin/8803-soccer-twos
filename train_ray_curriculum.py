@@ -61,8 +61,8 @@ if __name__ == "__main__":
         name="PPO_curriculum",
         config={
             # system settings
-            "num_gpus": 1,
-            "num_workers": 14,
+            "num_gpus": 0,
+            "num_workers": 5,
             "num_envs_per_worker": NUM_ENVS_PER_WORKER,
             "log_level": "INFO",
             "framework": "torch",
@@ -84,6 +84,13 @@ if __name__ == "__main__":
             },
             "rollout_fragment_length": 5000,
             "batch_mode": "complete_episodes",
+            "lr": 0.0003,                       # hyperparameters from pugliese paper
+            "gamma": 0.99,
+            "lambda": 0.95,
+            # "train_batch_size": 4_000,
+            # "sgd_minibatch_size": 256,
+            # "num_sgd_iter": 10,
+            "clip_param":0.2,
         },
         stop={
             "timesteps_total": 15000000,

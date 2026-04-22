@@ -18,8 +18,8 @@ if __name__ == "__main__":
         name="PPO_1",
         config={
             # system settings
-            "num_gpus": 1,
-            "num_workers": 8,
+            "num_gpus": 0,
+            "num_workers": 1,
             "num_envs_per_worker": NUM_ENVS_PER_WORKER,
             "log_level": "INFO",
             "framework": "torch",

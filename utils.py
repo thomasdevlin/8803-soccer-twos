@@ -86,8 +86,8 @@ def create_rllib_env(env_config: dict = {}):
     if "multiagent" in env_config and not env_config["multiagent"]:
         # is multiagent by default, is only disabled if explicitly set to False
         return env
-    # return RLLibWrapper(env)
-    return ShapingWrapper(env)
+    return RLLibWrapper(env)
+    # return ShapingWrapper(env)
 
 
 def sample_vec(range_dict):
