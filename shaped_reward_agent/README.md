@@ -1,6 +1,6 @@
 # Example Agent
 
-**Agent name:** reward_shaped_SoccerDQN
+**Agent name:** reward_shaped_SoccerPPO
 
 **Author (s):** Thomas Devlin (devlint@gatech.edu)
 

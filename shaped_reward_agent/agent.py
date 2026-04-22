@@ -1,11 +1,28 @@
 import os
 
+import gym
 from gym_unity.envs import ActionFlattener
 import numpy as np
-import torch
+import ray
+from ray.rllib.agents.ppo import PPOTrainer
 from soccer_twos import AgentInterface
 
-from .model import QNetwork
+
+class SpaceOnlyEnv(gym.Env):
+    """Minimal env shell used to construct RLlib policy objects."""
+
+    observation_space = None
+    action_space = None
+
+    def __init__(self, _config=None):
+        self.observation_space = self.__class__.observation_space
+        self.action_space = self.__class__.action_space
+
+    def reset(self):
+        return self.observation_space.sample()
+
+    def step(self, _action):
+        return self.observation_space.sample(), 0.0, True, {}
 
 
 class TeamAgent(AgentInterface):
@@ -14,24 +31,32 @@ class TeamAgent(AgentInterface):
     """
 
     def __init__(self, env):
-        # use flattened, Discrete actions instead of default MultiDiscrete
+        # find RLlib checkpoint from checkpoint directory
         self.flattener = ActionFlattener(env.action_space.nvec)
-        # this agent's model works with team_vs_policy variation of the env
-        # so we need to convert observations & actions
-        self.model = QNetwork(
-            env.observation_space.shape[0],
-            self.flattener.action_space.n,
-            seed=0,
+
+        checkpoint_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "checkpoint_000100"
         )
-        # check if weights exist, load weights & put model in eval mode
-        weights_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "checkpoint.pth"
+        checkpoint_path = os.path.join(checkpoint_dir, "checkpoint-100")
+        if not os.path.isfile(checkpoint_path):
+            raise FileNotFoundError("Checkpoint not found: {}".format(checkpoint_path))
+
+        # if not ray.is_initialized():
+        #     ray.init(ignore_reinit_error=True, include_dashboard=False, log_to_driver=False)
+
+        SpaceOnlyEnv.observation_space = env.observation_space
+        SpaceOnlyEnv.action_space = self.flattener.action_space
+
+        # create ray tune agent from loaded checkpoint 
+        self.trainer = PPOTrainer(
+            env=SpaceOnlyEnv,
+            config={
+                "num_workers": 0,
+                "num_gpus": 0,
+                "framework": "torch",
+            },
         )
-        if os.path.isfile(weights_path):
-            self.model.load_state_dict(torch.load(weights_path))
-        else:
-            print("Checkpoint not found.")
-        self.model.eval()
+        self.trainer.restore(checkpoint_path)
 
     def act(self, observation):
         """The act method is called when the agent is asked to act.
@@ -46,10 +71,10 @@ class TeamAgent(AgentInterface):
         actions = {}
         # for each team player
         for player_id in observation:
-            # create state tensor & feed it to model
-            state = torch.from_numpy(observation[player_id]).float().unsqueeze(0)
-            action_values = self.model(state)
-            action = np.argmax(action_values.data.numpy())
-            # convert Discrete action index to MultiDiscrete
-            actions[player_id] = self.flattener.lookup_action(action)
+            # feed observation into loaded model and update action dictionary
+            action = self.trainer.compute_action(observation[player_id], explore=False)
+            if isinstance(action, (int, np.integer)):
+                actions[player_id] = self.flattener.lookup_action(int(action))
+            else:
+                actions[player_id] = action
         return actions
