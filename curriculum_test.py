@@ -9,11 +9,16 @@ current = 0
 with open("curriculum.yaml") as f:
     curriculum = yaml.load(f, Loader=yaml.FullLoader)
 tasks = curriculum["tasks"]
+
+
 config_fns = {
     "none": lambda *_: None,
     "random_players": lambda env: env.set_policies(
         lambda *_: env.action_space.sample()
     ),
+    "ceia_baseline": lambda env: env.set_policies(
+        lambda *_: env.action_space.sample()
+    ),                                                  # just don't crash lmao
 }
 
 

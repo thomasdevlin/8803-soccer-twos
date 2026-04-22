@@ -1,25 +1,79 @@
+import os
 import yaml
 
+import numpy as np
 import ray
 from ray import tune
 from ray.rllib.agents.callbacks import DefaultCallbacks
+from ceia_baseline_agent import RayAgent
+from gym_unity.envs import ActionFlattener
 from soccer_twos import EnvType
 
 from utils import create_rllib_env, sample_pos_vel, sample_player
 
 
 NUM_ENVS_PER_WORKER = 3
+CURRICULUM_FILE = "curriculum.yaml"
+# CURRICULUM_FILE = "curriculum_ceia_test.yaml"
 
 current = 0
-with open("curriculum.yaml") as f:
+ceia_baseline_agent = None
+ceia_action_lookup = {
+    tuple(int(v) for v in values): key
+    for key, values in ActionFlattener([3, 3, 3]).action_lookup.items()
+}
+with open(CURRICULUM_FILE) as f:
     curriculum = yaml.load(f, Loader=yaml.FullLoader)
 tasks = curriculum["tasks"]
-config_fns = {
-    "none": lambda *_: None,
-    "random_players": lambda env: env.set_policies(
-        lambda *_: env.action_space.sample()
-    ),
-}
+
+
+def get_ceia_opponent_policy(env):
+    global ceia_baseline_agent
+    if ceia_baseline_agent is None:
+        ceia_baseline_agent = RayAgent(env)
+
+    def to_discrete_action(action):
+        if isinstance(action, (int, np.integer)):
+            return int(action)
+
+        if isinstance(action, np.ndarray):
+            values = tuple(int(v) for v in action.tolist())
+        elif isinstance(action, (list, tuple)):
+            values = tuple(int(v) for v in action)
+        else:
+            return int(action)
+
+        if values in ceia_action_lookup:
+            return ceia_action_lookup[values]
+
+        raise ValueError("Could not map CEIA action {} to discrete index".format(values))
+
+    def ceia_policy(obs):
+        raw_action = ceia_baseline_agent.act({0: obs})[0]
+        return to_discrete_action(raw_action)
+
+    return ceia_policy
+
+
+def apply_task_config(env, config_name):
+    if config_name == "none":
+        return
+
+    if config_name == "random_players":
+        env.set_policies(lambda *_: env.action_space.sample())
+        return
+
+    # Backward compatible alias: disable old self_play behavior.
+    if config_name == "self_play":
+        return
+
+    if config_name == "ceia_baseline":
+        env.set_opponent_policy(get_ceia_opponent_policy(env))
+        if hasattr(env, "set_teammate_policy"):
+            env.set_teammate_policy(lambda *_: 0)
+        return
+
+    raise KeyError("Unknown config_fn: {}".format(config_name))
 
 
 class CurriculumUpdateCallback(DefaultCallbacks):
@@ -28,8 +82,13 @@ class CurriculumUpdateCallback(DefaultCallbacks):
     ) -> None:
         global current, tasks
 
+        config_name = tasks[current]["config_fn"]
+        # Force last curriculum stage to train against ceia baseline.
+        if current == len(tasks) - 1:
+            config_name = "ceia_baseline"
+
         for env in base_env.get_unwrapped():
-            config_fns[tasks[current]["config_fn"]](env)
+            apply_task_config(env, config_name)
             env.env_channel.set_parameters(
                 ball_state=sample_pos_vel(tasks[current]["ranges"]["ball"]),
                 players_states={
@@ -40,6 +99,7 @@ class CurriculumUpdateCallback(DefaultCallbacks):
 
     def on_train_result(self, **info):
         global current
+
         if info["result"]["episode_reward_mean"] > 1.5:
             if current < len(tasks) - 1:
                 print("---- Updating tasks!!! ----")

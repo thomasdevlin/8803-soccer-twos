@@ -1,0 +1,35 @@
+tasks:
+  - name: "ceia_baseline"
+    config_fn: ceia_baseline
+    ranges:
+      ball:
+        position:
+          x: [-10, 14]
+          y: [-5, 5]
+        velocity:
+          x: [-10, 10]
+          y: [-10, 10]
+      players:
+        0:
+          rotation_y: [0, 360]
+          position:
+            x: [-14, 14]
+            y: [-5, 5]
+        1:
+          rotation_y: [0, 360]
+          position:
+            x: [-14, 14]
+            y: [-5, 5]
+          velocity:
+            x: [-10, 10]
+            y: [-10, 10]
+        2:
+          rotation_y: [0, 360]
+          position:
+            x: [-14, 14]
+            y: [-5, 5]
+        3:
+          rotation_y: [0, 360]
+          position:
+            x: [-14, 14]
+            y: [-5, 5]
