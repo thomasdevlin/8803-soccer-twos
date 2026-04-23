@@ -196,7 +196,7 @@ if __name__ == "__main__":
         checkpoint_freq=5,
         checkpoint_at_end=True,
         local_dir="./ray_results",
-        # restore="./ray_results/PPO_curriculum/PPO_Soccer_18ae1_00000_0_2026-04-23_12-18-43/checkpoint_000110/checkpoint-110",
+        restore="./ray_results/PPO_curriculum/PPO_Soccer_5103e_00000_0_2026-04-23_16-23-40/checkpoint_000010/checkpoint-10",
         # restore="./ray_results/PPO_curriculum/PPO_Soccer_53927_00000_0_2026-04-23_13-53-25/checkpoint_000190/checkpoint-190",
     )
 

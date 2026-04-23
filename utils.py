@@ -30,9 +30,9 @@ class ShapingWrapper(gym.core.Wrapper, MultiAgentEnv):
             "corner_radius": 3.5
         }
         self.objective_weights = {
-            "offensive": 0.001,
-            "defensive": 0.0005,
-            "center": 0.0005,
+            "offensive": 0.0001,
+            "defensive": 0.000025,
+            "center": 0.000025,
             "possession": 0.001,
             # "heading": 0.0001,
         }
