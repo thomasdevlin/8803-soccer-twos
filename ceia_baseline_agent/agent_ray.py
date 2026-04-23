@@ -32,6 +32,7 @@ class RayAgent(AgentInterface):
         """
         super().__init__()
         ray.init(ignore_reinit_error=True)
+        self.name = "ceia_baseline_agent"
 
         # Load configuration from checkpoint file.
         config_path = ""

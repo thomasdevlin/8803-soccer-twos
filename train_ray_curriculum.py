@@ -5,6 +5,7 @@ import numpy as np
 import ray
 from ray import tune
 from ray.rllib.agents.callbacks import DefaultCallbacks
+from TEAM1_AGENT import TeamAgent as Team1BaselineAgent
 from ceia_baseline_agent import RayAgent
 from gym_unity.envs import ActionFlattener
 from soccer_twos import EnvType
@@ -18,7 +19,9 @@ CURRICULUM_FILE = "curriculum.yaml"
 
 current = 0
 ceia_baseline_agent = None
-ceia_action_lookup = {
+team1_baseline_agent = None
+final_baseline_next = None
+baseline_action_lookup = {
     tuple(int(v) for v in values): key
     for key, values in ActionFlattener([3, 3, 3]).action_lookup.items()
 }
@@ -32,27 +35,40 @@ def get_ceia_opponent_policy(env):
     if ceia_baseline_agent is None:
         ceia_baseline_agent = RayAgent(env)
 
-    def to_discrete_action(action):
-        if isinstance(action, (int, np.integer)):
-            return int(action)
-
-        if isinstance(action, np.ndarray):
-            values = tuple(int(v) for v in action.tolist())
-        elif isinstance(action, (list, tuple)):
-            values = tuple(int(v) for v in action)
-        else:
-            return int(action)
-
-        if values in ceia_action_lookup:
-            return ceia_action_lookup[values]
-
-        raise ValueError("Could not map CEIA action {} to discrete index".format(values))
-
     def ceia_policy(obs):
         raw_action = ceia_baseline_agent.act({0: obs})[0]
         return to_discrete_action(raw_action)
 
     return ceia_policy
+
+
+def get_team1_opponent_policy(env):
+    global team1_baseline_agent
+    if team1_baseline_agent is None:
+        team1_baseline_agent = Team1BaselineAgent(env)
+
+    def team1_policy(obs):
+        raw_action = team1_baseline_agent.act({0: obs})[0]
+        return to_discrete_action(raw_action)
+
+    return team1_policy
+
+
+def to_discrete_action(action):
+    if isinstance(action, (int, np.integer)):
+        return int(action)
+
+    if isinstance(action, np.ndarray):
+        values = tuple(int(v) for v in action.tolist())
+    elif isinstance(action, (list, tuple)):
+        values = tuple(int(v) for v in action)
+    else:
+        return int(action)
+
+    if values in baseline_action_lookup:
+        return baseline_action_lookup[values]
+
+    raise ValueError("Could not map baseline action {} to discrete index".format(values))
 
 
 def apply_task_config(env, config_name):
@@ -73,6 +89,12 @@ def apply_task_config(env, config_name):
             env.set_teammate_policy(lambda *_: 0)
         return
 
+    if config_name == "team1_baseline":
+        env.set_opponent_policy(get_team1_opponent_policy(env))
+        if hasattr(env, "set_teammate_policy"):
+            env.set_teammate_policy(lambda *_: 0)
+        return
+
     raise KeyError("Unknown config_fn: {}".format(config_name))
 
 
@@ -80,12 +102,20 @@ class CurriculumUpdateCallback(DefaultCallbacks):
     def on_episode_start(
         self, *, worker, base_env, policies, episode, env_index, **kwargs
     ) -> None:
-        global current, tasks
+        global current, tasks, final_baseline_next
 
         config_name = tasks[current]["config_fn"]
-        # Force last curriculum stage to train against ceia baseline.
-        if current == len(tasks) - 1:
-            config_name = "ceia_baseline"
+        if config_name in ("team1_baseline", "ceia_baseline"):
+            if final_baseline_next is None:
+                final_baseline_next = config_name
+            config_name = final_baseline_next
+            final_baseline_next = (
+                "ceia_baseline"
+                if config_name == "team1_baseline"
+                else "team1_baseline"
+            )
+        else:
+            final_baseline_next = None
 
         for env in base_env.get_unwrapped():
             apply_task_config(env, config_name)
@@ -122,7 +152,7 @@ if __name__ == "__main__":
         config={
             # system settings
             "num_gpus": 0,
-            "num_workers": 16,
+            "num_workers": 6,
             "num_envs_per_worker": NUM_ENVS_PER_WORKER,
             "log_level": "INFO",
             "framework": "torch",
@@ -155,7 +185,7 @@ if __name__ == "__main__":
         stop={
             "timesteps_total": 20000000,
             "time_total_s": 36000, # 10h
-            "episode_reward_mean": 1.95,
+            "episode_reward_mean": 1.99,
         },
         # stop={
         #     "timesteps_total": 15000000,

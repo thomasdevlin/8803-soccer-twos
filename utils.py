@@ -32,7 +32,8 @@ class ShapingWrapper(gym.core.Wrapper, MultiAgentEnv):
         self.objective_weights = {
             "offensive": 0.00001,
             "defensive": 0.00001,
-            "possession": 0.00001,
+            "possession": 0.0001,
+            "heading": 0.0001,
         }
 
         self.my_team = None
@@ -58,11 +59,14 @@ class ShapingWrapper(gym.core.Wrapper, MultiAgentEnv):
             ball_dist_to_own_goal = np.linalg.norm(agent_pos-self.field_geometry["own_goal_pos"])
             ball_dist_to_own_goal = np.pow(ball_dist_to_own_goal, 2) # encourage stronger defense when closer to own goal
             agent_dist_to_ball = np.linalg.norm(agent_pos-ball_pos)
+            # agent_heading_to_ball = np.arctan2(ball_pos[1]-agent_pos[1], ball_pos[0]-agent_pos[0]) - infos[id]["player_info"]["rotation_y"]
+
 
             rewards[id] = (rewards[id] 
                 + self.objective_weights["offensive"] * ball_dist_to_opp_goal 
                 - self.objective_weights["defensive"] * ball_dist_to_own_goal 
-                + self.objective_weights["possession"] * agent_dist_to_ball
+                - self.objective_weights["possession"] * agent_dist_to_ball
+                # + self.objective_weights["heading"] * agent_heading_to_ball
             )
 
         return obs, rewards, terminateds, infos

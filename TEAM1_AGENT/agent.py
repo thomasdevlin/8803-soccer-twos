@@ -1,4 +1,3 @@
-import pickle
 import os
 from typing import Dict
 
@@ -15,9 +14,15 @@ from soccer_twos import AgentInterface
 ALGORITHM = "PPO"
 CHECKPOINT_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "./ray_results/PPO_curriculum/PPO_Soccer_919cc_00000_0_2026-04-22_15-22-14/checkpoint_000105/checkpoint-105",
+    "./ray_results/PPO_curriculum/PPO_Soccer_5cd1b_00000_0_2026-04-22_20-14-15/checkpoint_001060/checkpoint-1060",
 )
 POLICY_NAME = "default"  # this may be useful when training with selfplay
+MODEL_CONFIG = {
+    "vf_share_layers": True,
+    "fcnet_hiddens": [256, 256],
+    "fcnet_activation": "relu",
+}
+_SHARED_TRAINER = None
 
 
 class SpaceOnlyEnv(gym.Env):
@@ -53,7 +58,10 @@ class TeamAgent(AgentInterface):
             env: the competition environment.
         """
         super().__init__()
-        ray.init(ignore_reinit_error=True)
+        global _SHARED_TRAINER
+
+        if not ray.is_initialized():
+            ray.init(ignore_reinit_error=True)
 
         self.name = "team1_agent"
 
@@ -63,42 +71,27 @@ class TeamAgent(AgentInterface):
             self.flattener = ActionFlattener(env.action_space.nvec)
             policy_action_space = self.flattener.action_space
 
-        # Load configuration from checkpoint file.
-        config_path = ""
-        if CHECKPOINT_PATH:
-            config_dir = os.path.dirname(CHECKPOINT_PATH)
-            config_path = os.path.join(config_dir, "params.pkl")
-            # Try parent directory.
-            if not os.path.exists(config_path):
-                config_path = os.path.join(config_dir, "../params.pkl")
-
-        # Load the config from pickled.
-        if os.path.exists(config_path):
-            with open(config_path, "rb") as f:
-                config = pickle.load(f)
-        else:
-            # If no config in given checkpoint -> Error.
-            raise ValueError(
-                "Could not find params.pkl in either the checkpoint dir or "
-                "its parent directory!"
-            )
-
-        # no need for parallelism on evaluation
-        config["num_workers"] = 0
-        config["num_gpus"] = 0
-
         # Provide spaces expected by RLlib without creating another Unity env.
         SpaceOnlyEnv.observation_space = env.observation_space
         SpaceOnlyEnv.action_space = policy_action_space
         tune.registry.register_env("DummyEnv", create_space_only_env)
-        config["env"] = "DummyEnv"
 
-        # create the Trainer from config
-        cls = get_trainable_cls(ALGORITHM)
-        agent = cls(env=config["env"], config=config)
-        # load state from checkpoint
-        agent.restore(CHECKPOINT_PATH)
-        self.trainer = agent
+        # Build a minimal restore config without unpickling params.pkl.
+        config = {
+            "env": "DummyEnv",
+            "framework": "torch",
+            "num_workers": 0,
+            "num_gpus": 0,
+            "model": MODEL_CONFIG,
+        }
+
+        if _SHARED_TRAINER is None:
+            cls = get_trainable_cls(ALGORITHM)
+            agent = cls(env=config["env"], config=config)
+            agent.restore(CHECKPOINT_PATH)
+            _SHARED_TRAINER = agent
+
+        self.trainer = _SHARED_TRAINER
 
     def act(self, observation: Dict[int, np.ndarray]) -> Dict[int, np.ndarray]:
         """The act method is called when the agent is asked to act.
