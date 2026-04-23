@@ -16,6 +16,7 @@ from utils import create_rllib_env, sample_pos_vel, sample_player
 NUM_ENVS_PER_WORKER = 1
 CURRICULUM_FILE = "curriculum.yaml"
 # CURRICULUM_FILE = "curriculum_ceia_test.yaml"
+BASE_PORT = 5021
 
 current = 0
 ceia_baseline_agent = None
@@ -166,6 +167,7 @@ if __name__ == "__main__":
                 "flatten_branched": True,
                 "single_player": True,
                 "opponent_policy": lambda *_: 0,
+                "base_port": BASE_PORT,
             },
             "model": {
                 "vf_share_layers": True,
@@ -186,7 +188,8 @@ if __name__ == "__main__":
         stop={
             "timesteps_total": 20000000,
             "time_total_s": 36000, # 10h
-            "episode_reward_mean": 1.99,
+            # "episode_reward_mean": 1.99,
+            "episode_reward_mean": 10.0,
         },
         # stop={
         #     "timesteps_total": 15000000,
@@ -197,7 +200,7 @@ if __name__ == "__main__":
         checkpoint_at_end=True,
         local_dir="./ray_results",
         # restore="./ray_results/PPO_curriculum/PPO_Soccer_5103e_00000_0_2026-04-23_16-23-40/checkpoint_000010/checkpoint-10",
-        restore="./ray_results/PPO_curriculum/PPO_Soccer_f8069_00000_0_2026-04-23_16-56-58/checkpoint_000055/checkpoint-55",
+        # restore="~/scratch/8803-soccer-twos/ray_results/PPO_curriculum/PPO_Soccer_f8069_00000_0_2026-04-23_16-56-58/checkpoint_000055/checkpoint-55",
     )
 
     # Gets best trial based on max accuracy across all training iterations.
