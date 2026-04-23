@@ -14,7 +14,7 @@ from soccer_twos import AgentInterface
 ALGORITHM = "PPO"
 CHECKPOINT_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "./ray_results/PPO_curriculum/PPO_Soccer_18ae1_00000_0_2026-04-23_12-18-43/checkpoint_000110/checkpoint-110",
+    "./ray_results/PPO_curriculum/PPO_Soccer_f8069_00000_0_2026-04-23_16-56-58/checkpoint_000055/checkpoint-55",
 )
 POLICY_NAME = "default"  # this may be useful when training with selfplay
 MODEL_CONFIG = {
