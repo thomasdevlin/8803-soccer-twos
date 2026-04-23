@@ -122,7 +122,7 @@ if __name__ == "__main__":
         config={
             # system settings
             "num_gpus": 0,
-            "num_workers": 5,
+            "num_workers": 16,
             "num_envs_per_worker": NUM_ENVS_PER_WORKER,
             "log_level": "INFO",
             "framework": "torch",
@@ -153,10 +153,15 @@ if __name__ == "__main__":
             "clip_param":0.2,
         },
         stop={
-            "timesteps_total": 15000000,
-            "time_total_s": 7200, # 2h
-            "episode_reward_mean": 1.9,
+            "timesteps_total": 20000000,
+            "time_total_s": 36000, # 10h
+            "episode_reward_mean": 1.95,
         },
+        # stop={
+        #     "timesteps_total": 15000000,
+        #     "time_total_s": 7200, # 2h
+        #     "episode_reward_mean": 1.9,
+        # },
         checkpoint_freq=5,
         checkpoint_at_end=True,
         local_dir="./ray_results",
