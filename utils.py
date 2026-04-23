@@ -30,10 +30,11 @@ class ShapingWrapper(gym.core.Wrapper, MultiAgentEnv):
             "corner_radius": 3.5
         }
         self.objective_weights = {
-            "offensive": 0.00001,
-            "defensive": 0.00001,
-            "possession": 0.0001,
-            "heading": 0.0001,
+            "offensive": 0.001,
+            "defensive": 0.0005,
+            "center": 0.0005,
+            "possession": 0.001,
+            # "heading": 0.0001,
         }
 
         self.my_team = None
@@ -55,18 +56,26 @@ class ShapingWrapper(gym.core.Wrapper, MultiAgentEnv):
             agent_pos = np.array(infos[id]["player_info"]["position"])
             ball_pos = np.array(infos[id]["ball_info"]["position"])
 
-            ball_dist_to_opp_goal = np.linalg.norm(agent_pos-self.field_geometry["opp_goal_pos"])
-            ball_dist_to_own_goal = np.linalg.norm(agent_pos-self.field_geometry["own_goal_pos"])
-            ball_dist_to_own_goal = np.pow(ball_dist_to_own_goal, 2) # encourage stronger defense when closer to own goal
-            agent_dist_to_ball = np.linalg.norm(agent_pos-ball_pos)
-            # agent_heading_to_ball = np.arctan2(ball_pos[1]-agent_pos[1], ball_pos[0]-agent_pos[0]) - infos[id]["player_info"]["rotation_y"]
-
+            # saddle function: z(x_b, y_b) = w_own * (x_b-x_own_goal)^2 - w_opp * (x_b-x_opp_goal)^2 + w_center * direction*x_ball*y_ball^2
+            # positive when ball is in attacking half, negative when in defending half
+            x_ball = ball_pos[0]
+            y_ball = ball_pos[1]
+            x_own_goal = self.field_geometry["own_goal_pos"][0]
+            x_opp_goal = self.field_geometry["opp_goal_pos"][0]
+            
+            direction = 1.0 if (self.my_team == "a" and x_ball > 0) or (self.my_team == "b" and x_ball < 0) else -1.0
+            
+            saddle_reward = (
+                self.objective_weights["defensive"] * np.pow(x_ball - x_own_goal, 2)
+                - self.objective_weights["offensive"] * np.pow(x_ball - x_opp_goal, 2)
+                + self.objective_weights["center"] * direction * x_ball * np.pow(y_ball, 2)
+            )
+            
+            agent_dist_to_ball = np.linalg.norm(agent_pos - ball_pos)
 
             rewards[id] = (rewards[id] 
-                + self.objective_weights["offensive"] * ball_dist_to_opp_goal 
-                - self.objective_weights["defensive"] * ball_dist_to_own_goal 
+                + saddle_reward
                 - self.objective_weights["possession"] * agent_dist_to_ball
-                # + self.objective_weights["heading"] * agent_heading_to_ball
             )
 
         return obs, rewards, terminateds, infos
