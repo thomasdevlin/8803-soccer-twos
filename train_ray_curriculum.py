@@ -13,7 +13,7 @@ from soccer_twos import EnvType
 from utils import create_rllib_env, sample_pos_vel, sample_player
 
 
-NUM_ENVS_PER_WORKER = 3
+NUM_ENVS_PER_WORKER = 1
 CURRICULUM_FILE = "curriculum.yaml"
 # CURRICULUM_FILE = "curriculum_ceia_test.yaml"
 
@@ -172,8 +172,9 @@ if __name__ == "__main__":
                 "fcnet_hiddens": [256, 256],
                 "fcnet_activation": "relu",
             },
-            "rollout_fragment_length": 5000,
-            "batch_mode": "complete_episodes",
+            "rollout_fragment_length": 200,
+            "batch_mode": "truncate_episodes",
+            "train_batch_size": 4000,
             "lr": 0.0003,                       # hyperparameters from pugliese paper
             "gamma": 0.99,
             "lambda": 0.95,
