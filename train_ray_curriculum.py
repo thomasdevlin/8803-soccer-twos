@@ -1,11 +1,9 @@
-import os
 import yaml
 
 import numpy as np
 import ray
 from ray import tune
 from ray.rllib.agents.callbacks import DefaultCallbacks
-from TEAM1_AGENT import TeamAgent as Team1BaselineAgent
 from ceia_baseline_agent import RayAgent
 from gym_unity.envs import ActionFlattener
 from soccer_twos import EnvType
@@ -20,7 +18,6 @@ CURRICULUM_FILE = "curriculum.yaml"
 current = 0
 ceia_baseline_agent = None
 team1_baseline_agent = None
-final_baseline_next = None
 baseline_action_lookup = {
     tuple(int(v) for v in values): key
     for key, values in ActionFlattener([3, 3, 3]).action_lookup.items()
@@ -45,6 +42,13 @@ def get_ceia_opponent_policy(env):
 def get_team1_opponent_policy(env):
     global team1_baseline_agent
     if team1_baseline_agent is None:
+        try:
+            from TEAM1_AGENT import TeamAgent as Team1BaselineAgent
+        except ImportError as exc:
+            raise ImportError(
+                "team1_baseline is configured but TEAM1_AGENT could not be imported. "
+                "Remove team1_baseline from curriculum.yaml or provide TEAM1_AGENT."
+            ) from exc
         team1_baseline_agent = Team1BaselineAgent(env)
 
     def team1_policy(obs):
@@ -83,16 +87,23 @@ def apply_task_config(env, config_name):
     if config_name == "self_play":
         return
 
-    if config_name == "ceia_baseline":
-        env.set_opponent_policy(get_ceia_opponent_policy(env))
+    def set_non_learning_players(policy_fn):
+        if hasattr(env, "set_opponent_policy"):
+            env.set_opponent_policy(policy_fn)
         if hasattr(env, "set_teammate_policy"):
-            env.set_teammate_policy(lambda *_: 0)
+            env.set_teammate_policy(policy_fn)
+            return
+        if hasattr(env, "set_policies"):
+            env.set_policies(policy_fn)
+            return
+        raise AttributeError("Environment does not support setting baseline policies")
+
+    if config_name == "ceia_baseline":
+        set_non_learning_players(get_ceia_opponent_policy(env))
         return
 
     if config_name == "team1_baseline":
-        env.set_opponent_policy(get_team1_opponent_policy(env))
-        if hasattr(env, "set_teammate_policy"):
-            env.set_teammate_policy(lambda *_: 0)
+        set_non_learning_players(get_team1_opponent_policy(env))
         return
 
     raise KeyError("Unknown config_fn: {}".format(config_name))
@@ -102,20 +113,9 @@ class CurriculumUpdateCallback(DefaultCallbacks):
     def on_episode_start(
         self, *, worker, base_env, policies, episode, env_index, **kwargs
     ) -> None:
-        global current, tasks, final_baseline_next
+        global current, tasks
 
         config_name = tasks[current]["config_fn"]
-        if config_name in ("team1_baseline", "ceia_baseline"):
-            if final_baseline_next is None:
-                final_baseline_next = config_name
-            config_name = final_baseline_next
-            final_baseline_next = (
-                "ceia_baseline"
-                if config_name == "team1_baseline"
-                else "team1_baseline"
-            )
-        else:
-            final_baseline_next = None
 
         for env in base_env.get_unwrapped():
             apply_task_config(env, config_name)
@@ -135,6 +135,9 @@ class CurriculumUpdateCallback(DefaultCallbacks):
                 print("---- Updating tasks!!! ----")
                 current += 1
                 print(f"Current task: {current} - {tasks[current]['name']}")
+            else:
+                print("---- Curriculum complete! ----")
+                print(f"Final task: {current} - {tasks[current]['name']}")
 
 
 if __name__ == "__main__":
@@ -197,7 +200,7 @@ if __name__ == "__main__":
         checkpoint_at_end=True,
         local_dir="./ray_results",
         # restore="./ray_results/PPO_curriculum/PPO_Soccer_5103e_00000_0_2026-04-23_16-23-40/checkpoint_000010/checkpoint-10",
-        restore="./ray_results/PPO_curriculum/PPO_Soccer_f8069_00000_0_2026-04-23_16-56-58/checkpoint_000055/checkpoint-55",
+        restore="./ray_results/PPO_curriculum/PPO_Soccer_1c2f2_00000_0_2026-04-23_18-45-22/checkpoint_000110/checkpoint-110",
     )
 
     # Gets best trial based on max accuracy across all training iterations.
