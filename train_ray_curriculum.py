@@ -179,7 +179,7 @@ if __name__ == "__main__":
             },
             "rollout_fragment_length": 200,
             "batch_mode": "truncate_episodes",
-            "train_batch_size": 5000,
+            "train_batch_size": 4*3600,
             "lr": 0.0003,                       # hyperparameters from pugliese paper
             "gamma": 0.99,
             "lambda": 0.95,
@@ -190,7 +190,7 @@ if __name__ == "__main__":
         },
         stop={
             "timesteps_total": 20000000,
-            "time_total_s": 36000, # 10h
+            "time_total_s": 4*36000, # 10h
             # "episode_reward_mean": 1.99,
             "episode_reward_mean": 10.0,
         },
@@ -203,7 +203,7 @@ if __name__ == "__main__":
         checkpoint_at_end=True,
         local_dir="./ray_results",
         # restore="./ray_results/PPO_curriculum/PPO_Soccer_5103e_00000_0_2026-04-23_16-23-40/checkpoint_000010/checkpoint-10",
-        # restore="~/scratch/8803-soccer-twos/ray_results/PPO_curriculum/PPO_Soccer_f8069_00000_0_2026-04-23_16-56-58/checkpoint_000055/checkpoint-55",
+        restore = "./ray_results/PPO_curriculum/PPO_Soccer_e7e4a_00000_0_2026-04-24_11-33-13/checkpoint_000480/checkpoint-480",
     )
 
     # Gets best trial based on max accuracy across all training iterations.
