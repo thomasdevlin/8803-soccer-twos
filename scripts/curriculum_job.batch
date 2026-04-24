@@ -16,7 +16,7 @@
 #SBATCH --mail-user=tdevlin3@gatech.edu
 
 # source ~/miniconda3/etc/profile.d/conda.sh
-ray stop
+ray stop --force
 conda init
 source ~/.bashrc
 conda activate soccertwos
